@@ -13,47 +13,60 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # -------------------------
-      # Checkout
-      # -------------------------
+
+      # -----------------------------------
+      # Checkout Repository
+      # -----------------------------------
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # -------------------------
-      # Set IMAGE (SAFE + CORRECT)
-      # -------------------------
+      # -----------------------------------
+      # Set Docker Image Name
+      # -----------------------------------
       - name: Set Image Name
         run: |
           OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           echo "IMAGE=ghcr.io/$OWNER/statuspulse" >> $GITHUB_ENV
 
-      # -------------------------
-      # Login to GHCR
-      # -------------------------
+      # -----------------------------------
+      # Login to GitHub Container Registry
+      # -----------------------------------
       - name: Login to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_TOKEN }}
 
-      # -------------------------
-      # Build Image
-      # -------------------------
+      # -----------------------------------
+      # Build Docker Image
+      # -----------------------------------
       - name: Build Docker Image
         run: |
           docker build -t $IMAGE:${{ github.sha }} .
           docker tag $IMAGE:${{ github.sha }} $IMAGE:latest
 
-      # -------------------------
-      # Push Image
-      # -------------------------
-      - name: Push Docker Image
+      # -----------------------------------
+      # Verify Images
+      # -----------------------------------
+      - name: Verify Docker Images
+        run: docker images
+
+      # -----------------------------------
+      # Push Docker Images
+      # -----------------------------------
+      - name: Push Docker Images
         run: |
           docker push $IMAGE:${{ github.sha }}
           docker push $IMAGE:latest
 
-      # -------------------------
-      # DEPLOY TO EC2 (FIXED)
-      # -------------------------
+      # -----------------------------------
+      # Deploy to EC2 Server
+      # -----------------------------------
       - name: Deploy to Server
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          IMAGE: ${{ env.IMAGE }}
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
@@ -63,30 +76,29 @@ jobs:
 
             set -e
 
-            echo "Using image: $IMAGE"
+            echo "Deploying image: $IMAGE"
 
-            echo "Pulling latest image..."
-            docker pull $IMAGE:latest
+            cd ~/statuspulse
 
-            echo "Stopping old container..."
-            docker stop statuspulse || true
-            docker rm statuspulse || true
+            echo "Logging into GHCR..."
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
 
-            echo "Starting new container..."
-            docker run -d \
-              --name statuspulse \
-              -p 8000:8000 \
-              -e DB_HOST=postgres \
-              -e DB_NAME=${{ secrets.DB_NAME }} \
-              -e DB_USER=${{ secrets.DB_USER }} \
-              -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
-              -e REDIS_HOST=redis \
-              -e REDIS_PORT=6379 \
-              $IMAGE:latest
+            echo "Pulling latest images..."
+            docker compose pull
 
-            echo "Waiting for service..."
-            sleep 10
+            echo "Restarting containers..."
+            docker compose up -d --build
+
+            echo "Cleaning unused images..."
+            docker image prune -f
+
+            echo "Waiting for services..."
+            sleep 20
+
+            echo "Container status:"
+            docker ps
 
             echo "Health check..."
-
             curl -f http://localhost:8000/health
+
+            echo "Deployment successful!"
