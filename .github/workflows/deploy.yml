@@ -1,0 +1,92 @@
+name: StatusPulse CD
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # -------------------------
+      # LOGIN TO GHCR
+      # -------------------------
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      # -------------------------
+      # BUILD IMAGE
+      # -------------------------
+      - name: Build Docker Image
+        run: |
+          IMAGE=ghcr.io/${{ github.repository }}/statuspulse
+          docker build -t $IMAGE:${{ github.sha }} .
+          docker tag $IMAGE:${{ github.sha }} $IMAGE:latest
+
+      # -------------------------
+      # PUSH IMAGE
+      # -------------------------
+      - name: Push Docker Image
+        run: |
+          IMAGE=ghcr.io/${{ github.repository }}/statuspulse
+          docker push $IMAGE:${{ github.sha }}
+          docker push $IMAGE:latest
+
+      # -------------------------
+      # DEPLOY TO EC2
+      # -------------------------
+      - name: SSH Deploy to Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+
+            set -e
+
+            IMAGE=ghcr.io/${{ github.repository }}/statuspulse
+
+            echo "Pulling latest image..."
+            docker pull $IMAGE:latest
+
+            echo "Stopping old container..."
+            docker stop statuspulse || true
+            docker rm statuspulse || true
+
+            echo "Starting new container..."
+            docker run -d \
+              --name statuspulse \
+              -p 8000:8000 \
+              -e DB_HOST=postgres \
+              -e DB_NAME=${{ secrets.DB_NAME }} \
+              -e DB_USER=${{ secrets.DB_USER }} \
+              -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+              -e REDIS_HOST=redis \
+              -e REDIS_PORT=6379 \
+              $IMAGE:latest
+
+            echo "Waiting for app..."
+            sleep 10
+
+            echo "Health check..."
+
+            if curl -f http://localhost:8000/health; then
+              echo "✅ DEPLOY SUCCESS"
+            else
+              echo "❌ DEPLOY FAILED - ROLLBACK"
+
+              docker stop statuspulse || true
+              docker rm statuspulse || true
+
+              docker run -d \
+                --name statuspulse \
+                -p 8000:8000 \
+                $IMAGE:${{ github.sha }}
+
+              exit 1
+            fi
