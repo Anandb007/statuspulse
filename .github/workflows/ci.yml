@@ -1,4 +1,4 @@
-name: StatusPulse CI Pipeline
+name: StatusPulse CI
 
 on:
   push:
@@ -7,86 +7,70 @@ on:
     branches: [ "main" ]
 
 jobs:
-  ci:
+  ci-pipeline:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      # -------------------------
+      # Python Linting (Ruff)
+      # -------------------------
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
-      # -------------------------
-      # 1. Linting
-      # -------------------------
-      - name: Install ruff
+      - name: Install Ruff
         run: pip install ruff
 
-      - name: Run Python lint
-        run: ruff app/
+      - name: Run Lint
+        run: ruff check app/
 
       # -------------------------
-      # 2. Dockerfile Scan
+      # Dockerfile Lint (Hadolint)
       # -------------------------
-      - name: Install hadolint
+      - name: Run Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+
+      # -------------------------
+      # Setup Docker Compose
+      # -------------------------
+      - name: Build & Start Stack
         run: |
-          wget -O hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
-          chmod +x hadolint
-          sudo mv hadolint /usr/local/bin/
-
-      - name: Lint Dockerfile
-        run: hadolint Dockerfile
-
-      # -------------------------
-      # 3. Build Docker Image
-      # -------------------------
-      - name: Build Docker image
-        run: docker build -t statuspulse:ci .
-
-      # -------------------------
-      # 4. Start full stack
-      # -------------------------
-      - name: Start services
-        run: |
+          docker compose down -v || true
           docker compose up -d --build
-          sleep 15
+
+      - name: Wait for services
+        run: sleep 20
 
       # -------------------------
-      # 5. Install test tools
+      # Install test dependencies
       # -------------------------
-      - name: Install curl + jq
-        run: sudo apt-get update && sudo apt-get install -y curl jq
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
       # -------------------------
-      # 6. Run integration tests
+      # Run Integration Tests
       # -------------------------
-      - name: Run integration tests
-        run: bash tests/test_integration.sh
+      - name: Run Integration Tests
+        run: |
+          chmod +x tests/test_integration.sh
+          ./tests/test_integration.sh
 
       # -------------------------
-      # 7. Collect logs if failure
+      # Collect Logs (Always)
       # -------------------------
-      - name: Dump logs on failure
-        if: failure()
-        run: docker compose logs
-
-      # -------------------------
-      # 8. Tear down
-      # -------------------------
-      - name: Cleanup
+      - name: Collect Docker Logs
         if: always()
-        run: docker compose down -v
+        run: docker compose logs > logs.txt
 
-      # -------------------------
-      # 9. Upload artifacts
-      # -------------------------
-      - name: Upload logs
+      - name: Upload Logs Artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ci-logs
-          path: |
-            ./*.log
+          path: logs.txt
