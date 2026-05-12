@@ -4,33 +4,40 @@ on:
   push:
     branches: ["main"]
 
+# -------------------------
+# IMPORTANT FIX (GHCR PERMISSION)
+# -------------------------
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
       # -------------------------
-      # Checkout
+      # Checkout Code
       # -------------------------
       - name: Checkout Code
         uses: actions/checkout@v4
 
       # -------------------------
-      # Set lowercase image name (IMPORTANT FIX)
+      # Set SAFE IMAGE NAME (LOWERCASE FIX)
       # -------------------------
-      - name: Set Image Name (LOWERCASE FIX)
+      - name: Set Image Name
         run: |
-          REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE=ghcr.io/$REPO/statuspulse" >> $GITHUB_ENV
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE=ghcr.io/$OWNER/statuspulse" >> $GITHUB_ENV
 
       # -------------------------
-      # Login to GHCR
+      # LOGIN TO GHCR
       # -------------------------
-      - name: Login to GHCR
+      - name: Login to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       # -------------------------
-      # Build Image
+      # BUILD DOCKER IMAGE
       # -------------------------
       - name: Build Docker Image
         run: |
@@ -38,7 +45,7 @@ jobs:
           docker tag $IMAGE:${{ github.sha }} $IMAGE:latest
 
       # -------------------------
-      # Push Image
+      # PUSH IMAGE TO GHCR
       # -------------------------
       - name: Push Docker Image
         run: |
@@ -46,7 +53,7 @@ jobs:
           docker push $IMAGE:latest
 
       # -------------------------
-      # Deploy to EC2 via SSH
+      # DEPLOY TO EC2 VIA SSH
       # -------------------------
       - name: Deploy to Server
         uses: appleboy/ssh-action@v1.0.3
@@ -57,6 +64,8 @@ jobs:
           script: |
 
             set -e
+
+            IMAGE=ghcr.io/${{ github.repository_owner | toLower }}/statuspulse
 
             echo "Pulling latest image..."
             docker pull $IMAGE:latest
@@ -77,15 +86,15 @@ jobs:
               -e REDIS_PORT=6379 \
               $IMAGE:latest
 
-            echo "Waiting for app..."
+            echo "Waiting for service..."
             sleep 10
 
-            echo "Health check..."
+            echo "Running health check..."
 
             if curl -f http://localhost:8000/health; then
               echo "✅ DEPLOY SUCCESS"
             else
-              echo "❌ DEPLOY FAILED → ROLLBACK"
+              echo "❌ DEPLOY FAILED - ROLLING BACK"
 
               docker stop statuspulse || true
               docker rm statuspulse || true
