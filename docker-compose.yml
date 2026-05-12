@@ -1,96 +1,50 @@
+#version: "3.9"
+
 services:
-
   postgres:
-    image: postgres:16
-    container_name: statuspulse-postgres
-
+    image: postgres:15
+    container_name: postgres
     environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
+      POSTGRES_DB: statuspulse
+      POSTGRES_USER: statuspulse
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-
+    ports:
+      - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      test: ["CMD-SHELL", "pg_isready -U statuspulse"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-    mem_limit: 512m
-
-    restart: unless-stopped
-
-    networks:
-      - statuspulse-network
-
-
   redis:
     image: redis:7
-    container_name: statuspulse-redis
-
-    command: redis-server --appendonly yes
-
+    container_name: redis
+    ports:
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-    mem_limit: 256m
-
-    restart: unless-stopped
-
-    networks:
-      - statuspulse-network
-
-
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-
-    image: statuspulse:latest
-
+    build: .
     container_name: statuspulse-app
-
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-      redis:
-        condition: service_healthy
-
-    env_file:
-      - .env
-
-    environment:
-      DB_HOST: postgres
-      REDIS_HOST: redis
-
     ports:
       - "8000:8000"
-
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-
-    mem_limit: 512m
-
-    restart: unless-stopped
-
-    networks:
-      - statuspulse-network
-
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: statuspulse
+      DB_USER: statuspulse
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - postgres
+      - redis
 
 volumes:
-  postgres_data:
-
-
-networks:
-  statuspulse-network:
-    driver: bridge
+  pgdata:
