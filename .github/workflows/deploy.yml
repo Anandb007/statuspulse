@@ -4,9 +4,6 @@ on:
   push:
     branches: ["main"]
 
-# -------------------------
-# IMPORTANT FIX (GHCR PERMISSION)
-# -------------------------
 permissions:
   contents: read
   packages: write
@@ -17,13 +14,13 @@ jobs:
 
     steps:
       # -------------------------
-      # Checkout Code
+      # Checkout
       # -------------------------
       - name: Checkout Code
         uses: actions/checkout@v4
 
       # -------------------------
-      # Set SAFE IMAGE NAME (LOWERCASE FIX)
+      # Set IMAGE (SAFE + CORRECT)
       # -------------------------
       - name: Set Image Name
         run: |
@@ -31,13 +28,13 @@ jobs:
           echo "IMAGE=ghcr.io/$OWNER/statuspulse" >> $GITHUB_ENV
 
       # -------------------------
-      # LOGIN TO GHCR
+      # Login to GHCR
       # -------------------------
-      - name: Login to GitHub Container Registry
+      - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       # -------------------------
-      # BUILD DOCKER IMAGE
+      # Build Image
       # -------------------------
       - name: Build Docker Image
         run: |
@@ -45,7 +42,7 @@ jobs:
           docker tag $IMAGE:${{ github.sha }} $IMAGE:latest
 
       # -------------------------
-      # PUSH IMAGE TO GHCR
+      # Push Image
       # -------------------------
       - name: Push Docker Image
         run: |
@@ -53,7 +50,7 @@ jobs:
           docker push $IMAGE:latest
 
       # -------------------------
-      # DEPLOY TO EC2 VIA SSH
+      # DEPLOY TO EC2 (FIXED)
       # -------------------------
       - name: Deploy to Server
         uses: appleboy/ssh-action@v1.0.3
@@ -61,11 +58,12 @@ jobs:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: IMAGE
           script: |
 
             set -e
 
-            IMAGE=ghcr.io/${{ github.repository_owner | toLower }}/statuspulse
+            echo "Using image: $IMAGE"
 
             echo "Pulling latest image..."
             docker pull $IMAGE:latest
@@ -89,20 +87,6 @@ jobs:
             echo "Waiting for service..."
             sleep 10
 
-            echo "Running health check..."
+            echo "Health check..."
 
-            if curl -f http://localhost:8000/health; then
-              echo "✅ DEPLOY SUCCESS"
-            else
-              echo "❌ DEPLOY FAILED - ROLLING BACK"
-
-              docker stop statuspulse || true
-              docker rm statuspulse || true
-
-              docker run -d \
-                --name statuspulse \
-                -p 8000:8000 \
-                $IMAGE:${{ github.sha }}
-
-              exit 1
-            fi
+            curl -f http://localhost:8000/health
