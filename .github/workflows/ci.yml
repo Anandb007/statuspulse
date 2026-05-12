@@ -35,7 +35,8 @@ jobs:
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: Dockerfile
-
+          config: .hadolint.yaml  #newl added
+          failure-threshold: warning  #newladded
       # -------------------------
       # Start Stack (NO .env FILE)
       # -------------------------
@@ -43,6 +44,7 @@ jobs:
         env:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: |
+          export DB_PASSWORD=${DB_PASSWORD}   #newlyadded
           docker compose down -v || true
           DB_PASSWORD=$DB_PASSWORD docker compose up -d --build
 
