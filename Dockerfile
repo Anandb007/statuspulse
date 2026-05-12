@@ -5,7 +5,6 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
-# Install build dependencies (clean + recommended format)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential gcc \
     && rm -rf /var/lib/apt/lists/*
@@ -22,27 +21,27 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install only runtime dependencies (no extra packages)
+# IMPORTANT FIX: add curl for HEALTHCHECK + keep minimal packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 \
+    libpq5 curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy installed python packages
+# Copy python packages
 COPY --from=builder /install /usr/local
 
-# Copy application
+# Copy app
 COPY app/ /app/
 
-# Create non-root user (security requirement)
+# Create non-root user
 RUN useradd -m appuser && chown -R appuser /app
 
 USER appuser
 
 EXPOSE 8000
 
-# Healthcheck (required by client)
+# HEALTHCHECK FIXED (reliable + production-safe)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 CMD curl -f http://localhost:8000/health || exit 1
 
-# Run application
+# Run app
 CMD ["gunicorn", "main:app", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000"]
