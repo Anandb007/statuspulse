@@ -32,7 +32,7 @@ jobs:
         run: ruff check app/
 
       # -------------------------
-      # Docker Lint (Hadolint)
+      # Hadolint Scan
       # -------------------------
       - name: Hadolint Scan
         uses: hadolint/hadolint-action@v3.1.0
@@ -47,17 +47,14 @@ jobs:
         run: docker build -t statuspulse-app:latest .
 
       # -------------------------
-      # SECURITY SCAN (TRIVY - ONLY CHANGE)
+      # SECURITY SCAN (TRIVY - OPTIMIZED, NO INSTALL)
       # -------------------------
-      - name: Trivy Install
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget
-          wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.70.0_Linux-64bit.deb
-          sudo dpkg -i trivy_0.70.0_Linux-64bit.deb
-
       - name: Trivy Image Scan
-        run: trivy image statuspulse-app:latest || true
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest \
+            image statuspulse-app:latest || true
 
       # -------------------------
       # START FULL STACK
