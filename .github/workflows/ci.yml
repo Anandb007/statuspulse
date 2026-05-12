@@ -1,0 +1,92 @@
+name: StatusPulse CI Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # -------------------------
+      # 1. Linting
+      # -------------------------
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Run Python lint
+        run: ruff app/
+
+      # -------------------------
+      # 2. Dockerfile Scan
+      # -------------------------
+      - name: Install hadolint
+        run: |
+          wget -O hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
+          chmod +x hadolint
+          sudo mv hadolint /usr/local/bin/
+
+      - name: Lint Dockerfile
+        run: hadolint Dockerfile
+
+      # -------------------------
+      # 3. Build Docker Image
+      # -------------------------
+      - name: Build Docker image
+        run: docker build -t statuspulse:ci .
+
+      # -------------------------
+      # 4. Start full stack
+      # -------------------------
+      - name: Start services
+        run: |
+          docker compose up -d --build
+          sleep 15
+
+      # -------------------------
+      # 5. Install test tools
+      # -------------------------
+      - name: Install curl + jq
+        run: sudo apt-get update && sudo apt-get install -y curl jq
+
+      # -------------------------
+      # 6. Run integration tests
+      # -------------------------
+      - name: Run integration tests
+        run: bash tests/test_integration.sh
+
+      # -------------------------
+      # 7. Collect logs if failure
+      # -------------------------
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs
+
+      # -------------------------
+      # 8. Tear down
+      # -------------------------
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v
+
+      # -------------------------
+      # 9. Upload artifacts
+      # -------------------------
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs
+          path: |
+            ./*.log
