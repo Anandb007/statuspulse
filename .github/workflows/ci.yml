@@ -47,10 +47,10 @@ jobs:
         run: docker build -t statuspulse-app:latest .
 
       # -------------------------
-      # SECURITY SCAN (TRIVY)
+      # SECURITY SCAN (TRIVY FIXED)
       # -------------------------
       - name: Trivy Image Scan
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: statuspulse-app:latest
           format: table
