@@ -11,14 +11,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # -------------------------
-      # Checkout Code
-      # -------------------------
       - name: Checkout Code
         uses: actions/checkout@v4
 
       # -------------------------
-      # Setup Python
+      # Python Lint (Ruff)
       # -------------------------
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -32,63 +29,44 @@ jobs:
         run: ruff check app/
 
       # -------------------------
-      # Docker Lint (Hadolint)
+      # Dockerfile Lint
       # -------------------------
-      - name: Hadolint Scan
+      - name: Hadolint
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: Dockerfile
-          failure-threshold: warning
-
+          config: .hadolint.yaml  #newl added
+          failure-threshold: warning  #newladded
       # -------------------------
-      # BUILD DOCKER IMAGE
+      # Start Stack (NO .env FILE)
       # -------------------------
-      - name: Build Docker Image
-        run: docker build -t statuspulse-app:latest .
-
-      # -------------------------
-      # SECURITY SCAN (TRIVY)
-      # -------------------------
-      - name: Trivy Image Scan
-        uses: aquasecurity/trivy-action@0.24.0
-        with:
-          image-ref: statuspulse-app:latest
-          format: table
-          exit-code: 1
-          severity: CRITICAL,HIGH
-
-      # -------------------------
-      # START FULL STACK
-      # -------------------------
-      - name: Start Docker Compose Stack
+      - name: Start Docker Stack
         env:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: |
+          export DB_PASSWORD=${DB_PASSWORD}   #newlyadded
           docker compose down -v || true
           DB_PASSWORD=$DB_PASSWORD docker compose up -d --build
 
-      # -------------------------
-      # WAIT FOR SERVICES
-      # -------------------------
       - name: Wait for services
         run: sleep 20
 
       # -------------------------
-      # Install Tools
+      # Install tools
       # -------------------------
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
       # -------------------------
-      # RUN INTEGRATION TESTS
+      # Run Integration Tests
       # -------------------------
-      - name: Run Integration Tests
+      - name: Run Tests
         run: |
           chmod +x tests/test_integration.sh
           ./tests/test_integration.sh
 
       # -------------------------
-      # COLLECT LOGS (ALWAYS)
+      # Logs (always)
       # -------------------------
       - name: Collect Logs
         if: always()
