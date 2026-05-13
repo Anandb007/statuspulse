@@ -378,6 +378,90 @@ curl -i http://52.6.40.101:8000/incidents
 
 ---
 
+---
+
+## HTTPS Reverse Proxy Verification (Caddy + TLS)
+
+```bash
+ubuntu@statuspulse:~/statuspulse$ curl -vI https://52.6.40.101.nip.io/health
+* Host 52.6.40.101.nip.io:443 was resolved.
+* IPv6: (none)
+* IPv4: 52.6.40.101
+*   Trying 52.6.40.101:443...
+* ALPN: curl offers h2,http/1.1
+* TLSv1.3 (OUT), TLS handshake, Client hello (1):
+* SSL Trust Anchors:
+*   CAfile: /etc/ssl/certs/ca-certificates.crt
+*   CApath: /etc/ssl/certs
+* TLSv1.3 (IN), TLS handshake, Server hello (2):
+* TLSv1.3 (IN), TLS change cipher, Change cipher spec (1):
+* TLSv1.3 (IN), TLS handshake, Encrypted Extensions (8):
+* TLSv1.3 (IN), TLS handshake, Certificate (11):
+* TLSv1.3 (IN), TLS handshake, CERT verify (15):
+* TLSv1.3 (IN), TLS handshake, Finished (20):
+* TLSv1.3 (OUT), TLS change cipher, Change cipher spec (1):
+* TLSv1.3 (OUT), TLS handshake, Finished (20):
+* SSL connection using TLSv1.3 / TLS_AES_128_GCM_SHA256 / x25519 / id-ecPublicKey
+* ALPN: server accepted h2
+* Server certificate:
+*   subject: CN=52.6.40.101.nip.io
+*   start date: May 12 20:07:33 2026 GMT
+*   expire date: Aug 10 20:07:32 2026 GMT
+*   issuer: C=US; O=Let's Encrypt; CN=E8
+*   Certificate level 0: Public key type EC/prime256v1 (256/128 Bits/secBits), signed using ecdsa-with-SHA384
+*   Certificate level 1: Public key type EC/secp384r1 (384/192 Bits/secBits), signed using sha256WithRSAEncryption
+*   Certificate level 2: Public key type RSA (4096/152 Bits/secBits), signed using sha256WithRSAEncryption
+*   subjectAltName: "52.6.40.101.nip.io" matches cert's "52.6.40.101.nip.io"
+* SSL certificate verified via OpenSSL.
+* Established connection to 52.6.40.101.nip.io (52.6.40.101 port 443) from 172.31.94.93 port 37546
+* using HTTP/2
+* [HTTP/2] [1] OPENED stream for https://52.6.40.101.nip.io/health
+* [HTTP/2] [1] [:method: HEAD]
+* [HTTP/2] [1] [:scheme: https]
+* [HTTP/2] [1] [:authority: 52.6.40.101.nip.io]
+* [HTTP/2] [1] [:path: /health]
+* [HTTP/2] [1] [user-agent: curl/8.18.0]
+* [HTTP/2] [1] [accept: */*]
+> HEAD /health HTTP/2
+> Host: 52.6.40.101.nip.io
+> User-Agent: curl/8.18.0
+> Accept: */*
+>
+* Request completely sent off
+* TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
+< HTTP/2 405
+HTTP/2 405
+< allow: GET
+allow: GET
+< alt-svc: h3=":443"; ma=2592000
+alt-svc: h3=":443"; ma=2592000
+< content-type: application/json
+content-type: application/json
+< date: Wed, 13 May 2026 05:41:34 GMT
+date: Wed, 13 May 2026 05:41:34 GMT
+< server: Caddy
+server: Caddy
+< server: uvicorn
+server: uvicorn
+< strict-transport-security: max-age=31536000;
+strict-transport-security: max-age=31536000;
+< x-content-type-options: nosniff
+x-content-type-options: nosniff
+< x-frame-options: DENY
+x-frame-options: DENY
+< x-xss-protection: 1; mode=block
+x-xss-protection: 1; mode=block
+< content-length: 31
+content-length: 31
+<
+* Connection #0 to host 52.6.40.101.nip.io:443 left intact
+ubuntu@statuspulse:~/statuspulse$
+```
+
+---
+
+---
+
 # 💾 Backup & Restore
 
 ## PostgreSQL Backup
