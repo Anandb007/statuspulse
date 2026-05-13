@@ -598,16 +598,4 @@ https://github.com/Anandb007
 
 ---
 
-# ⭐ Support
-
-If you found this project useful:
-
-- ⭐ Star the repository
-- 🍴 Fork the project
-- 🛠️ Contribute improvements
-
----
-
-# 📜 License
-
 This project is licensed under the MIT License.
